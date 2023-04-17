@@ -1,0 +1,349 @@
+Reliable UDP (RUDP) File Transfer Spec 1.03
+===========================================
+
+This is a converted version of the RUDP documentation provided by
+Julian of BearShare. The original PDF document is available here:
+
+http://groups.yahoo.com/group/the_gdf/files/Proposals/Pending%20Proposals/F2F/Reliable%20UDP%20version%201.03.pdf
+
+
+Packet Type
+===========
+
+There are five different RUDP packets. The RUDP packet header is a
+Gnutella header with function field set to 0x41.  The RUDP packets
+headers are saved in  the first 16 bytes of the Gnutella header (which
+is normally the GUID field).   The five types are: SYN, ACK, KEEPALIVE,
+DATA, and FIN.
+
+enum PacketType {
+	OP_SYN 	     = 0x0,
+	OP_ACK 	     = 0x1,
+	OP_KEEPALIVE = 0x2,
+	OP_DATA      = 0x3,
+	OP_FIN       = 0x4
+};
+
+
+Basic RUDP message definition:
+==============================
+
+struct UdpConnMsg {
+	unsigned long peerConnID :8; // first 8 bits is peer's connection id.
+	unsigned long data1Size : 4; // second 4 bits is data1 length. Only
+                               	     // DATA packets use it.
+	unsigned long opcode :4;     // third 4 bits is the packet type
+	unsigned long seqNumber :16; // last 16 bits is sequence number.
+};
+
+The seqNumber should be incremented only after sending a DATA or SYN
+message. Message retransmissions do not change the seqNumber.
+Bearshare set data1Size to 0 except Data packet.
+
+
+SYN
+===
+
+struct UdpSynMsg : UdpConnMsg {
+	unsigned char connID; // the connID used in this connection
+	unsigned __int16 protocolVersionNumber; // set to 0 for first version
+};
+
+Receiver of SYN should remember this connID, and set the
+UdpConnMsg.peerConnID = this connID for all following packets.  Timeout
+for SYN is 20 seconds. The initial sequence number is 0.
+
+
+ACK
+===
+
+struct UdpAckMsg : UdpConnMsg {
+	unsigned __int16 windowStart;  // Highest seqNumber received so far.
+	unsigned __int16 windowSpace;  // this is reserved
+};
+
+ACK message's seqNumber is copied from the message it ACKs.    KEEPALIVE
+Same as ACK, the only difference is its opcode is set to 0x2. 
+
+Because UDP hole may close if no data passes, this message is used to
+keep the hole open.   Bearshare will send KEEPALIVE if no data sent or
+received in 10 seconds.  Bearshare will close connection if no message (
+include KEEPALIVE  message ) received in 20 seconds.   DATA  
+
+struct UdpDataMsg : UdpConnMsg {
+	unsigned char data1[MAX_GUID_DATA];
+};
+
+MAX_GUID_DATA = 12, because GUID length is 16, and UdpConnMsg length is
+4. So we can store 12 bytes of data in the header.  The data1Size in
+UdpConnMsg defines how many of those bytes are valid. The Gnutella
+header's length field defines total size of the payload.    Size of
+Bearshare send packet:  1472 (UDP MTU for Ethernet and PPP)
+-GNUTELLA_HEADER_SIZE + MAX_GUID_DATA - 40( compensate for PPP
+encapsulations ) which comes to 1421 bytes.  
+
+Bearshare will drop a UDP packet if its size > 4K bytes. Rules:
+
+1) When out of order seqNumber was received, if it is 25 bigger than
+   current received max in order seqNumber, it will be drop.  Otherwise it
+   will be stored.  The timeout for Data packet is get from RTT. If no ack
+   for the  packet is received, sender will re-send.
+
+2) If retry 5 times still not get ack, connection will be dropped.
+
+FIN
+===
+
+struct UdpFinMsg : UdpConnMsg {
+	unsigned char reasonCode;
+};
+
+enum CloseReason  {
+	REASON_NORMAL_CLOSE     = 0x0,
+	REASON_YOU_CLOSED       = 0x1,
+	REASON_TIMEOUT          = 0x2,
+	REASON_LARGE_PACKET     = 0x3,
+	REASON_TOO_MANY_RESENDS = 0x4,
+};    
+
+Connection sequence Suppose we have two nodes A and B. A tries to
+download from B. The steps are: 
+
+1)  A sends a push to B and at the same time A starts sending SYN
+    messages to B, A will re-send the SYN message every 1 second until the
+    connection is  established.
+2)  B receives push, and starts sending SYN messages to A. B will also
+    keep resending every 1 second until the connection is established
+3)  At some point, the firewall for each node opens a corresponding
+    hole. Both A and B receive the SYN sent by the other node.
+4)  Both A and B send ACK to the SYN. Connection established.
+5)  A and B send DATA messages to each other.
+6)  A or B sends FIN, closing the connection. 
+
+
+RTT
+===
+
+Only calculate the RTT of a data packet if we are receiving the first
+ACK to the first send of the data packet. Otherwise, no RTT or cumulative
+effect is recorded. Given a low failure rate of generally less than 2%,
+this works  reasonably well. It could be an issue if the RTT was
+shooting up during failures but if failures are occurring then
+exponential backoff and such  should fix that situation.
+
+
+Congestion Control Used by Bearshare
+====================================
+
+Congestion control is handled by the sender using its Sliding Window.
+The window size determines how many packets can be sent and outstanding
+(waiting for an ack) at any given time.   Basically, it is the same as the TCP
+congestion avoidance algorithm.     A simplified description -
+implementation details are left to the client:
+
+1) Initial Sliding Window size is 5. Maximum size is 25.  Minimum size is 1.
+2) Reduce Window when receiving out of order Ack. Increase Window when
+   receiving in order Ack.
+3) Reduce Window to 1 when retransmit.
+4) Check send buffer queue size each second, reduce window when send buffer
+   queue has data, increase Window when send buffer queue is empty.
+
+
+Setup test 
+
+Controlled test In order to setup a Controlled test environment, you
+should have at least one of the following setups:
+
+1)  2 computers with public IPs and firewall software installed
+2)  2 computers with private IPs, each connected to a different router
+
+Install 3 Bearshares or 2 Bearshares and 1 limewire. One Bearshare works
+as UP, others work as leaves. None of them connect to Gnutella network.
+Manually connect both leaves to the UP.    Make sure the two leaves run
+on different machines and are totally firewalled.  Send a query from one
+leaf that will return hits from the other leaf, and start a download off
+of one of those hits.   In both Bearshare's upload and download list
+views, you will see the host color is purple, meaning UDP connection.
+In Bearshare, the Udplogic Console reporters show sending and receiving
+udp packets.  DownloadStream, Upload Console reporters it is same as
+before.  Uncontrolled test  Try to download and upload from Limewire
+4.2.6, which supports firewall to firewall transfer.
+
+
+LimeWire's Internal Documentation
+=================================
+
+Requirements for FW-FW Transfer:
+--------------------------------
+* You must be firewalled (no successful incoming connections).
+* You must know your external address (snooped from Sockets for outgoing
+  connections).
+* You must be able to handle solicited UDP traffic (easy test: send out
+  a UDP Ping with a certain GUID, see if you get a UDP Pong with that GUID
+  back) -- use GGEP "IP" to get your external IP and port.
+* You must have valid PushProxy connections (really only true for
+  uploaders, but for sake of simplicity apply to everyone).
+
+In the next few sections, some information may be repeated.
+
+Client Side (Downloader) behavior:
+----------------------------------
+
+* If you meet the requirements above, nodes should mark bit 9 of their
+  queries MinSpeed field.  NOTE: If you set bit 9, you must set bit 14 ("I
+  am firewalled" bit).  Nodes that are also firewalled would usually
+  ignore your query, but if they meet the requirements above and see bit 9
+  marked they can now return a hit.
+* Nodes (from firewalled hosts) that support firewalled transfers will
+  send a GGEP header and value in their reply.  The GGEP header is "FW"
+  and the value is the FW-FW Transfer version (currently 1).  Replies from
+  firewalled hosts should be ignored unless this GGEP header is present in
+  the reply.
+* If a reply from a firewalled node is downloaded by the user, the node
+  should send a PushProxy request to the node's (uploader's) PushProxy (as
+  many as needed up to as many provided).  The PushProxy HTTP request
+  should be amended to include a file parameter with value (2^31 - 3),
+  i.e. "&file=2147483645".  Also, the HTTP exchange should have a "X-Node"
+  header value of the downloader's external address and firewalled port.
+* Assuming the PushProxy process was successful, the downloader should
+  start sending UDP Syns (as described further below) to the uploader's
+  address (which is taken from the reply).  If everything is kosher, it will
+  get a UDP Ack in reply (and the transfer can start).
+
+Client Side (Uploader) behavior:
+--------------------------------
+
+* If a node that satisifes all the FW-FW Transfer conditions receives a
+  query with MinSpeed bits 14 and 9 marked, it may send a reply to this node.
+* Any reply should satisfy the following constraints:
+   - It must have a GGEP header "FW" with value 1.
+   - The reply must have address and port info as follows: address is
+     external address as reported by symmetric TCP connections, port must be
+     your (firewalled) listening port.
+* When the node receives a Push with index 2147483645 it should start
+  sending UDP Syns to the address and port described by the Push.  If
+  everything is kosher, it will get a UDP Ack in reply (and the transfer
+  can start).
+
+PushProxy behavior:
+-------------------
+
+* Proxies should not need to do anything different, assuming their
+  initial implementation was sane (i.e. it should note the file param and
+  should fill out the Push's address, port, and file index correctly).
+
+[Notes from RAM]
+
+The above specifications could not work correctly when initiating FW-FW
+transfers behind a NAT firewall, unless there was way for the sender to know
+in advance the port that will be opened by the firewall to perform NAT
+and be able to route traffic back to the sender in the internal network..
+
+The solution is to use the GGEP "IP" extension in a ping: the remote host
+will send back another "IP" in the pong echoing the source address and port
+of the ping.  That lets the firewalled servent know its external port.
+
+Therefore, when using an HTTP push-proxy to send the request, the X-Node
+header can advertise the discovered external IP:port used by the servent.
+
+When a push-proxy is getting a PUSH via UDP, it can recognize that the
+file-index refers to a FW-FW transfer.  The push-proxy can then patch the
+message in-place using the port in the incoming UDP message -- that is the
+port used by the NAT firewall, and only that port will get traffic back to
+the downloader behind the NAT firewall!
+
+That on-the-fly patching by the UDP push-proxy is useful and can help if
+the NAT firewall changed the port without the user knowing (it was rebooted,
+reset, etc...).  It nicely complements the discovery through GGEP "IP" but
+only works for UDP pushes.
+
+[/Notes from RAM]
+
+Connection Negotiation and lifetime for UDP Connections:
+--------------------------------------------------------
+
+This is a brief description of the UDP connection setup at a low level with
+some minor updates.  Note that this presupposes that the connections have
+been kicked off on both ends via pushes/push-proxies and by the downloader
+locally.
+
+Each end of the connection starts out sending a SYN message to setup a
+connectionID, identify itself and open up the firewall in the process.
+There are dedicated ACK messages in response to every SYN, DATA or FIN
+message.  FIN messages are for shutdown.  There is also a KEEPALIVE message
+that shares some of the internal state of ACK messages (windowStart,
+windowSpace but not the sequenceNumber of what they are Acking).
+
+Everything is somewhat intellegently packed into a Gnutella message with
+parts of the GUID used for data as well.   Everything has a sequenceNumber
+which is physically sent on the wire as 2 bytes but logically and internally
+mapped to 8 bytes.
+
+The Data messages try to pack 512 bytes of data into a Gnutella message (12
+in GUID and 500 in payload).  That seems to be enough to avoid
+super-inefficiency.
+
+The data transfer algorithm is sort of a combination of SFTP with some TCP
+concepts added on.   For better throughput, a window is used to rate control
+the data messages.  The current implementation works with a data window of 20
+data messages.  The general idea is to try to send data at *intervals* so as
+to ensure that you don't overload the other ends receiving window.  The
+other end will ack these data packets with the sequenceNumber, windowStart
+and windowSpace.  The windowStart tells you the lowest sequenceNumber that
+the other side has not emptied out of its window.  Roughly speaking, as the
+windowSpace starts to approach zero on the other end, you should slow down
+and stop sending Data.
+
+Example: The windowStart value is the value of the highest sequenceNumber
+where every lower number has been received.   So, if I received: 44, 45, 47,
+48, 49.  My ACK on 49 would have a windowStart of 46 until 46 was received.
+If 46 did come in either via a resend or the original message then its
+ack would have a windowStart of 50.  I use these values to ACK any lower
+packets if necessary (without taking into account the timing of them).
+
+SYN messages start off connections and communicate the desired identifier
+(ID) for a UDP connection.  They use ID=0 until they have received
+the ID desired by the other end of the connection.  It is important to the
+LimeWire implementation that they start using the ID once received.
+They also communicate the protocol version number.  IDs for established
+connections are from 1 through 255.  They cycle so that an ID will not be
+reused for a while to avoid ID collision problems from old connections.
+
+   SYN  ID=0 SEQ=0 myID=1 V=1 ->
+   SYN  ID=0 SEQ=0 myID=1 V=1 ->
+   SYN  ID=3 SEQ=0 myID=1 V=1 -> [Repeated for up to 20 seconds
+                                  until an ACK is received]
+<- SYN  ID=0 SEQ=0 myID=3 V=1
+<- SYN  ID=0 SEQ=0 myID=3 V=1
+<- SYN  ID=1 SEQ=0 myID=3 V=1    [Repeated for up to 20 seconds
+                                  until an ACK is received]
+
+The connection is not officially set up until acks are returned from both
+ends.
+
+   ACK  ID=3 SEQ=0            ->
+<- ACK  ID=1 SEQ=0
+
+Once acks have been exchanged, data can be sent.  Note that with messages
+sent, we use the other end of the connections desired connection ID.  This
+can be true on some of the final SYN messages as well (after a SYN from the
+other side is received but before an ACK is received).
+
+   DATA ID=3 SEQ=1            ->
+<- DATA ID=1 SEQ=1
+
+<- ACK ID=1 SEQ=1
+   ACK ID=3 SEQ=1             ->
+
+....
+
+<- FIN ID=1 SEQ=702 R=0
+   FIN ID=3 SEQ=204 R=1       ->
+   ACK ID=3 SEQ=702           ->
+<- ACK ID=1 SEQ=204
+
+FIN messages signal a connection shutdown.  They carry a reason code.  Zero
+signals a normal close on the local socket.  One signals that the other end
+closed the connection.  Note that each end maintains its own sequenceNumber
+count.
+

@@ -1,0 +1,64 @@
+        Supplementary Compile Instructions for Debian-based Systems
+        ===========================================================
+
+Unfortunately, many people have trouble compiling gtk-gnutella on Linux
+distributions albeit it should be very simple. The following applies to
+Debian-based system that is also Ubuntu.
+
+
+1. Dependencies:
+================
+
+You'll have to install the following packages:
+
+  apt-get install fakeroot        # required for compiling using the .deb
+  apt-get install debhelper       # required for compiling using the .deb
+  apt-get install gcc             # GCC; any version is fine
+  apt-get install make            # the make tool; any version is fine
+  apt-get install zlib1g-dev      # zlib
+  apt-get install libgnutls28-dev # GnuTLS (or the latest xx-dev)
+  apt-get install gettext   	  # Native Language Support (NLS)
+
+For the Gtk+ 2.x front-end you'll need these:
+
+  apt-get install libglib2.0-dev  # GLib 2.x
+  apt-get install libgtk2.0-dev   # Gtk+ 2.x
+
+If you want to use the Gtk+ 1.2 front-end instead:
+
+  apt-get install libglib1.2-dev  # GLib 1.2
+  apt-get install libgtk1.2-dev   # Gtk+ 1.2
+
+The following package is optional:
+
+  apt-get install libdbus-1-dev   # D-Bus
+
+
+2. Build:
+=========
+
+Run from the top of the source tree:
+
+  fakeroot debian/rules binary
+
+and it will build the .deb package for you in the parent directory.
+
+
+3. Finish:
+==========
+
+You can then run gtk-gnutella without installing:
+
+  src/gtk-gnutella
+
+To install gtk-gnutella just run (version and architecture will vary):
+
+  cd ..
+  su
+  dpkg --install gtk-gnutella*.deb
+
+For further compile options and instructions, see the README file and
+edit the debian/rules file to change the line calling "./build.sh" to suit
+your taste. Run "./build.sh --help" to list available options.
+
+$Id$

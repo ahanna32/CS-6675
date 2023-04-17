@@ -1,0 +1,122 @@
+Original Authors:
+
+	Yann Grossel <olrick@users.sourceforge.net> [until mid 2000]
+ 	Raphael Manfredi <Raphael_Manfredi@pobox.com> [from Aug 2001]
+
+Current Maintainer:
+
+ 	Raphael Manfredi <Raphael_Manfredi@pobox.com>
+
+Current Roles:
+
+	Project management: Raphael Manfredi [from August 2001 to January 2006]
+	Chief architect: Raphael Manfredi
+	Core development: Raphael Manfredi
+	GUI development: Richard Eckart [GTK1] / Christian Biere [GTK2]
+	Swarming development: Vidar Madsen
+	PARQ development: Jeroen Asselman
+	Windows port: Jeroen Asselman
+
+Contributors (in chronological order):
+
+	Steven Wilcoxon <swilcoxon@users.sourceforge.net>
+	Jason Lingohr <lingman@users.sourceforge.net>
+	Brian St Pierre <bstpierre@users.sourceforge.net>
+	Chuck Homic <homic@users.sourceforge.net>
+	Ingo Saitz <salz@users.sourceforge.net>
+	Ben Hochstedler <hochstrb@users.sourceforge.net>
+	Daniel Walker <axiom@users.sourceforge.net>
+	Paul Cassella <pwc@users.sourceforge.net> 
+	Jared Mauch <jaredmauch@users.sourceforge.net>
+	Nate E <web1 (at) users dot sourceforge dot net>
+ 	Raphael Manfredi <Raphael_Manfredi@pobox.com>
+	Kenn Brooks Hamm <khamm@andrew.cmu.edu>
+	Mark Schreiber <mark7@andrew.cmu.edu>
+	Sam Varshavchik <mrsam@courier-mta.com>
+	Vladimir Klebanov <unny@rz.uni-karlsruhe.de>
+	Roman Shterenzon <roman@xpert.com>
+	Robert Bihlmeyer <robbe@orcus.priv.at>
+	Noel T.Nunkovich <ntnunk@earthlink.net>
+	Michael Tesch <tesch@users.sourceforge.net>
+	Markus 'guruz' Goetz <guruz@guruz.de>
+	Richard Eckart <wyldfire@users.sourceforge.net>
+	Christophe Tronche <ch.tronche@computer.org>
+	Alex Bennee <alex@bennee.com>
+	Mike Perry <mikepery@fscked.org>
+	Zygo Blaxell <zblaxell@feedme.hungrycats.org>
+	Vidar Madsen <vidar@gimp.org>
+	Christian Biere <christianbiere@gmx.de>
+	ko <junkpile@free.fr>
+	Jeroen Asselman <jeroen@asselman.com>
+	T'aZ <tazdev@altern.org>
+	Andrew Barnert <barnert@myrealbox.com>
+	Michael Gray <mrgray01@kappa.slug.louisville.edu>
+	Nicolas Lichtmaier <niqueco@users.sf.net>
+	Emile le Vivre <emile@struggle.ca>
+	Rafael R. Reilova <rreilova@magepr.net>
+	Stephane Corbe <noubi@users.sourceforge.net>
+	Angelo Cano <angelo_cano@fastmail.fm>
+	Thomas Schuerger <thomas@schuerger.com>
+	Russell Francis <rf358197@ohio.edu>
+	Richard Hyde <email@richardhyde.net>
+	Thadeu Lima de Souza Cascardo <cascardo@dcc.ufmg.br>
+	Paco Arjonilla <pacoarjonilla@yahoo.es>
+	Clayton Rollins <clayton.rollins@asu.edu>
+	Hans de Graaff <hans@degraaff.org>
+	Globuz
+	Daichi Kawahata <daichik@users.sourceforge.net>
+	Dave Rutherford <polymath69@users.sourceforge.net>
+	Ian Sheldon <shellgeekorguk@users.sourceforge.net>
+	Bill Pringlemeir <bpringle@sympatico.ca>
+	Lloyd Bryant <lloydbaz@msn.com>
+	Martijn van Oosterhout <kleptog@svana.org>
+	Jochen Kemnade <jochenkemnade@web.de>
+	Larry Nieves <lanieves@gmail.com>
+
+Translators (alphabetically sorted by language code):
+
+	de - Thomas Schuerger <thomas@schuerger.com>
+	de - Jochen Kemnade <jochenkemnade@web.de>
+	el - Bouklis Panos <panos@echidna-band.com>
+	es - Paco Arjonilla <pacoarjonilla@yahoo.es>
+	es - Larry Nieves <lanieves@gmail.com>
+	fr - FlashCode <flashcode@flashtux.org>
+	fr - T'aZ <tazdev@altern.org>
+	hu - Sulyok Péter <sp@elte.hu>
+	it - Lorenzo Gaifas <lorenzo@artiemestieri.tn.it>
+	it - Lucio Marinelli <luciombox-1@yahoo.it>
+	ja - Daichi Kawahata <daichik@users.sourceforge.net>
+	nb - Alexander N. Sørnes <alex@thehandofagony.com>
+	nl - Jeroen Asselman <jeroen@asselman.com>
+	tr - Uğur Çetin <ugur.jnmbk@gmail.com>
+	uk - Vitaliy Buyar <vetal18@users.sourceforge.net>
+	zh - Wu Xiaoguang <wxgnj@yahoo.com.cn>
+	 
+Artwork:
+
+	Taken from the gtop package:
+	arrow_up.xpm, arrow_down.xpm
+
+        Taken from eMule:
+	upload.xpm, download.xpm, smallserver.xpm
+	
+	Taken from Evolution:
+	online.xpm, offline.xpm
+	
+	Taken from http://jimmac.musichall.cz who created
+	the icons for OpenOffice.org
+	stock_form-time-field-16.xpm
+
+        Taken from KDE CrystalSVG Theme (and modified)
+	clanbomber_yellow.xpm, clanbomber_red.xpm
+
+        Taken from KDE Slick Theme
+        filter.xpm
+	
+	Original art by Richard Eckart created using the Gimp:
+	firewall.xpm, no_firewall.xpm
+	
+	Original art by T'aZ
+	leaf.xpm
+	magnet.svg and derivatives
+

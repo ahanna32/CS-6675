@@ -1,0 +1,154 @@
+Quick Release Guide
+====================
+
+[The whole process will take ~1 hour]
+
+Checking steps
+--------------
+
+Before releasing, double check that:
+
+* The keys have been updated for the major release, in src/core/token.c,
+  with the date (timestamp) listed in the token_keys[] array being accurate.
+  Generate new keys with this:
+
+	dd if=/dev/urandom | od -x | awk '{
+		printf("\t\042%s %s %s %s %s %s %s %s\042,\n",
+			$2,$3,$4,$5,$6,$7,$8,$9) }' | head -n 28
+
+Release steps
+-------------
+
+0. Make sure everything is up to date, since we're releasing based on
+   local files:
+
+	cd "top directory"
+	git pull --rebase origin
+	cd extra_files
+	make update			# updates geo-ip.txt
+
+	cd "top directory"
+	tx pull				# Pull translations from Transifex
+
+	# If the above "tx pull" did not work, then do:
+
+	tx pull -f
+	cd po
+	make update
+
+1. Write user summary of changes since last release in ChangeLog.
+
+2. Mark toplevel entry in ChangeLog as being the release:
+
+   # v 0.91   2002-10-19  [stable]
+
+   Highlight of changes (user-visible):
+
+   - Change #1.
+   - Change #2...
+
+2a. Update the version number at the top of src/gtk-gnutella.man
+
+   Check the man-page to see if there are any user-visible changes such
+   as command line options that must be described there.
+
+3. Edit src/gtk-gnutella.h and setup for the release:
+
+   #define GTA_REVISION "stable"
+   #define GTA_REVCHAR ""
+   #define GTA_RELEASE "2002-10-19"
+
+4. Update debian/changelog. Generate the timestamp as follows:
+
+	TZ=UTC LC_ALL=C date +'%a, %e %b %Y %H:%M:%S %z'
+
+5. Make sure MANIFEST doesn't list any files considered unfree by Debian,
+   for example, RFCs and other copyrighted documentation.
+
+6. From the "top directory", run:
+
+	git diff > ~/tmp/xxx
+
+   Look at the ~/tmp/xxx file to see whether there are still uncommitted
+   changes that require to be checked-in before the release is made.
+   Commit them if needed.
+
+7. Commit pending changes with comment such as "Release 0.91 stable."
+
+	git commit -a -m "Release 0.91 stable."
+
+8. Merge back to the master branch and tag project with a PGP signature:
+
+	git checkout master
+	git merge --no-ff -m "Release 0.98.3 stable." devel
+	git tag -s -m "Release 0.98.3 stable." v0.98.3
+
+9. Make a clean distribution package:
+
+	cd "top directory"
+	makedist -q -c gtk-gnutella-0.97.1
+	cd gtk-gnutella-0.97.1
+	./scripts/git-version.sh >version
+
+   This will generate a directory gtk-gnutella-0.97.1 and include the
+   proper version file.
+
+10. Create the tar.xz and detached ASCII signature
+
+	tar -cvf gtk-gnutella-0.92.1.tar gtk-gnutella-0.92.1
+	xz -v9 gtk-gnutella-0.92.1.tar
+	pgp -sba gtk-gnutella-0.92.1.tar.xz
+
+11. Move into the directory.
+
+	cd gtk-gnutella-0.92.1
+
+12. Build the debian package:
+
+	fakeroot debian/rules binary
+
+	This will generate file ../gtk-gnutella_0.92.1-0_i386.deb
+
+13. When everything builds fine, publish the new release:
+
+	 git push origin
+	 git push --tags origin
+
+14. Go to https://sourceforge.net/projects/gtk-gnutella/files/ and
+    create a new directory gtk-gnutella/0.96.9 (say) to host the
+	released files.
+
+15. Upload the files to sourceforge using scp, or use the web interface
+    to upload the files through HTTP.
+
+16. Click on the file information for the .xz file, and make it the new
+    default download.
+
+17. Go back to the Summary page and check if the project details are
+    still up-to-date. In particular check the set of languages
+    available in the distribution against the listing with:
+
+	 cat po/*.po|grep 'Language-Team:'|sort
+
+18. Update sourceforge's website: Create a news entry in htdocs/files/en using 
+    news_template as a guide and submit it.  The scripts/changelog2html
+	script can automate most of this process:
+	
+	 scripts/changelog2html ChangeLog > htdocs/files/en/news_NUM
+
+19. Change the VERSION file in htdocs/files to update the version number.
+
+	VERSION=0.96.9
+
+20. Manually update the web site by running the update_homepage.sh script
+    from the htdocs directory:
+
+	./update_homepage.sh USER
+
+    where USER is your sourceforge login name.
+
+21. Send a message to gtk-gnutella-announce telling about the release
+    using Announce-template.txt
+
+22. That's all folks!
+

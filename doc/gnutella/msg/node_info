@@ -1,0 +1,228 @@
+              The "Node Info" Vendor-specific Messages
+                              Version 1
+
+                          Raphael Manfredi
+                    <Raphael_Manfredi@pobox.com>
+                          August 4th, 2006
+                
+
+INTRODUCTION
+
+An ultra node should be ideally positionned in the network: it must be
+connected to well-connected ultra peers.  In order for an ultra node to
+assess its connectivity, we are introducing an information exchange between
+ultra nodes, allowing them to make sure they are connected to "good" peers.
+
+Indeed, in a network with high outdegree and low TTL, keeping a connection
+with a poorly connected ultra node is not good for the "density" of the
+network and not good for our leaves which have a lower search horizon.
+
+Great care must be taken however to not peruse the information that can be
+gathered through those messages to isolate poorly connected nodes or to
+create inordinate amounts of connection churns.  Every node deserves the
+right to participate to the Gnutella network and be given a chance to
+become a well-connected node.
+
+The information gathered through UDP can also prove to be valuable for
+researchers who study peer-to-peer networks and Gnutella in particular, to
+assess the level of support of particular features, etc...
+
+SPECIFICATIONS
+
+Those messages are meant to be used on a TCP connection to gather information
+about connected peers.  However, they can also be sent via UDP in order for
+UDP host caches to know which hosts can accept connections, for instance.
+
+* Node Info Request
+
+    Name: Node Info Request
+    Vendor: GTKG
+    ID: 22
+    Version: 1
+    TTL: 1
+    Payload: (big-endian)
+		uint32: flags
+
+The flags are used to customize the reply that we wish to get, since some
+of the fields are optional:
+
+	0x00000001		include GGEP "DU" (daily average uptime) extension
+	0x00000002		include GGEP "LOC" (locale) extension
+	0x00000004		include GGEP "GTKG.IPV6" (IPv6 support) extension
+	0x00000008		include GGEP "UA" giving the complete user-agent string
+	0x00000010		include bandwidth information
+	0x00000020		include TX/RX dropped packets information (TCP only!)
+	0x00000040		include query hit statistics
+	0x00000080		include CPU usage statistics
+	0x00000100		include GGEP "GGEP" listing known extensions (see below)
+	0x00000200		include GGEP "VMSG" listing vendor messages (see below)
+
+* Node Info Reply
+
+    Name: Node Info Reply
+    Vendor: GTKG
+    ID: 23
+    Version: 1
+    TTL: 1
+    Payload: (big-endian representation for multibyte values)
+		char[4]: vendor code, e.g. { 'G', 'T', 'K', 'G' }
+        byte: running mode (0 = auto, 1 = leaf, 2 = ultra)
+		uint32: answer flags
+		uint32: operating flags
+		byte: amount of "optional features" entries (say n=3)
+		uint32: optional features #1
+		..
+		uint32: optional features #3
+        byte: max amount of ultra nodes (in UP mode)
+        byte: max amount of ultra nodes (in leaf mode)
+        byte: current amount of ultra nodes
+        uint16: max amount of leaves
+        uint16: current amount of leaves
+		byte: TTL limit for messages sent
+		byte: hard TTL limit for messages relayed
+		uint32: startup time
+		uint32: last IP address change (v4/v6 most recent change of used proto)
+		if (answer_flags & 0x10) {
+			uint16: bandwidth flags
+			uint32: Gnutella input b/w limit in KiB/sec (0 = none)
+			uint32: Gnutella output b/w limit in KiB/sec (0 = none)
+			uint32: Leaf input b/w limit in KiB/sec (0 = none)
+			uint32: Leaf output b/w limit in KiB/sec (0 = none)
+		}
+		if (answer_flags & 0x20) {
+			/* Meaningful only when message is sent via TCP */
+			uint32: dropped TX packets on this connection (flow-control)
+			uint32: dropped RX packets on this connection (bad, flow-control)
+		}
+		if (answer_flags & 0x40) {
+			uint16: max amount of results returned per query hit
+			uint32: amount of individual file hits on shared files
+			uint32: amount of query hits messages returned via TCP
+			uint32: amount of query hits messages returned via UDP (claimed)
+			uint64: total size of qhits returned via TCP (with Gnet header)
+			uint64: total size of qhits returned via UDP (with Gnet header)
+		}
+		if (answer_flags & 0x80) {
+			uint64: total user CPU time used, in milliseconds
+			uint64: total system CPU time used, in milliseconds
+		}
+		<optional GGEP block with requested information>
+
+The GUID of the Node Info Reply request is a copy of the one used in the
+Node Info Request.  This allows the requester to know which of its requests
+was finally processed (requests can be lost during UDP transport, or get
+discarded by the flow-control of the Gnutella TCP connection).
+
+The operating flags (dynamic settings) are defined as:
+
+	0x00000001			is TCP-firewalled
+	0x00000002			is UDP-firewalled
+	0x00000004			is an active member of the DHT
+	0x00000008			is an ancient version
+	0x00000010			time synchronized via NTP
+	0x00000020			running headless as a server
+	0x00000040			is a passive member of the DHT
+	0x00000080			allows UDP traffic
+	0x00000100			advertises public hostname (DNS name instead of IP)
+	0x00000200			requests OOB in its queries
+	0x00000400			will act as OOB proxy for leaves
+	0x00000800			will deliver OOB replies
+	0x00001000			can punch UDP hole
+	0x00002000			is official build (pre-compiled for bin distribution)
+
+Optional features are listed in an array of 32-bit flags.  The amount of
+entries in the array precedes that array.  Currently, only 2 entries (#1 and
+#2) are defined, but in the future, as the feature set grows, we may provide
+more entries.  A servent will naturally skip over the entries it does not
+understand.
+
+NB: A feature supported is not necessarily enabled by the user.  For instance,
+a servent can support OOB query hit delivery, but the feature may have been
+disabled by the user.  Nonetheless, that servent will indicate that the feature
+is supported.
+
+The optional features #1 are defined as:
+
+	0x00000001			supports Browse Host
+	0x00000002			supports Partial File Sharing
+	0x00000004			supports Chat
+	0x00000008			supports Firewall-to-Firewall transfers
+	0x00000010			supports Push Proxy
+	0x00000020			supports "What's New?" queries
+	0x00000040			supports TTH and THEX
+	0x00000080			supports magnet URIs
+	0x00000100			supports UHC (can act as UHC server)
+	0x00000200			supports TCP stream compression
+	0x00000400			supports UDP payload compression
+	0x00000800			supports dynamic querying
+	0x00001000			supports active download queuing
+	0x00002000			supports passive download queuing
+	0x00004000			supports GWC-based bootstrapping
+	0x00008000			supports UHC-based bootstrapping
+	0x00010000			supports generation of XML meta data in query hits
+	0x00020000			supports TCP-based crawling
+	0x00040000			supports UDP-based crawling
+	0x00080000			supports inter-UP QRP tables
+	0x00100000			supports large leaf QRP tables (up to 2 MiSlots)
+	0x00200000			supports HTTP/1.1 "chunked" encoding
+	0x00400000			supports HTTP/1.1 Retry-After
+	0x00800000			supports modern "query speed" flags
+	0x01000000			supports TLS connections
+	0x02000000			supports OOB hit delivery
+	0x04000000			supports OOB proxying for leaves
+	0x08000000			supports BYE with meaningful messages
+	0x10000000			supports swarming (downloads from multiple hosts)
+	0x20000000			supports GGEP extensions
+	0x40000000			supports Content-Encoding negotiation for downloads
+	0x80000000			supports Content-Encoding negotiation for uploads
+
+The optional features #2 are defined as:
+
+	0x00000001			supports GUESS queries
+	0x00000002			supports the Gnutella DHT architecture
+	0x00000004			supports IPv6
+	0x00000008			supports bandwidth limiting
+	0x00000010			supports Gnutella traffic flow control
+	0x00000020			uses Hops-Flow message for active flow-control
+	0x00000040			supports HTTP "HEAD" requests
+	0x00000080			supports alive ping/pongs
+	0x00000100			supports pong caching (no broadcasting of pings)
+	0x00000200			forwards duplicate messages coming with higher TTL
+	0x00000400			supports dynamic query hit throttling
+	0x00000800			supports leaf-guided queries
+	0x00001000			serves small chunks without queuing
+
+The answer flags is simply an echoing of the flags that were present in the
+Node Info Request.  That way, the issuer of the request does not need to
+remember the GUID of the request to recall which information it asked for.
+Furthermore, if some information was requested but the node answering does
+not know how to report that information, the corresponding bit is zero-ed.
+In other words, the answer flags represents the information being returned
+in the Node Info Reply.
+
+The bandwidth flags are defined as:
+
+	0x0001				b/w pools can steal unused b/w from each other
+	0x0002				makes uses of IPv4 TOS
+	0x0004				EMA of Gnutella inter-ultrapeer b/w used at 90+%
+	0x0008				EMA of Gnutella ultra->leaves b/w used at 90+%
+	0x0010				outgoing b/w probably saturated (many stalls detected)
+
+The "Node Info Reply" should be sent like an "alive pong", i.e. with an urgent
+priority (put ahead of the transmission queue) when replying through TCP.
+
+The GGEP "UA" extension holds a single string (without any trailing NUL)
+containing the User-Agent string as it would be advertised in a HTTP header.
+For instance "gtk-gnutella/0.96.2u (2006-08-29; r11932; GTK1; Linux i686)".
+
+The GGEP "GGEP" extension is used to list all the known GGEP extensions,
+not including "GGEP" (obviously supported).  The format of the payload
+is the list of ASCII-only extension names, each separated by a NUL byte.
+The final extension listed must not have any trailing NUL byte.
+
+The GGEP "VMSG" extension is used to list all the supported vendor messages,
+as an array of 8 bytes, in the same format as the "Supported Messages"
+vendor message, only there is no array length indication at the beginning,
+since the length is given by the GGEP extension header.  So each 8-byte entry
+lists: the vendor code (4 bytes), the message ID (2 bytes, little-endian),
+the message version (2 bytes, little-endian).

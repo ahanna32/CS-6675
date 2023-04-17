@@ -1,0 +1,280 @@
+          Introducing New Bye (0x02) Packet in Gnutella 0.4
+
+                          Raphael Manfredi
+                    <Raphael_Manfredi@pobox.com>
+                        September, 11th 2001
+                     Updated October, 5th 2001
+                     Updated February, 4th 2002
+                      Updated March 15th, 2002
+
+
+1. Introduction
+
+This proposal is about a new Bye packet that would be sent by servents
+upon disconnecting from a connected node, giving a final reason that
+the remote end can display.
+
+It is safe to retrofit the Bye packet into the 0.4 protocol.  Indeed, the
+packet is the last thing that will be sent by a disconnecting servent, and
+it will be otherwise ignored as a bad packet by older servents, which is
+not dramatic given it is the last thing they will see on that connection.
+
+This packet is believed to be useful to the developers of Gnutella
+servents.  Users will be able to report the error, and maybe understand
+what is going wrong, with them or with the remote node.
+
+This packet is also considered by the tenant of that proposal as carrying
+some "social value".  Friends say good-bye to each other when they part,
+and the Gnutella Network is some kind of modern electronic friendship,
+where people gather and friendly share and exchange files, to the mutual
+benefit of all parties.
+
+
+2. The Bye (0x02) Packet
+
+The payload descriptor is 0x02, and the payload content is:
+
+        +------+-----------------------+
+        | Code | NUL-terminated String |
+        +------+-----------------------+
+
+where Code is a 2-byte error code, encoded in little endian, as usual on
+Gnutella.  The remaining is a NUL-terminated String, giving a description
+of the error.
+
+The presence of the Code allows for automated processing of the message,
+and the regular SMTP classification of error code ranges should apply.
+Of particular interests are the 200..299, 400..499 and 500..599 ranges.
+Here is the general classification ("User" here refers to the remote
+node that we are disconnecting from):
+
+    2xx     The User did nothing wrong, but the servent chose to close
+            the connection: it is either exiting normally (200), or
+            the local manager of the servent requested an explicit
+            close of the connection (201).
+
+    4xx     The User did something wrong, as far as the servent is concerned.
+            It can send packets deemed too big (400), too many duplicate
+            messages (401), relay improper queries (402), relay messages
+            deemed excessively long-lived [hop+TTL > max] (403), send too
+            many unknown messages (404), the node reached its inactivity
+            timeout (405), it failed to reply to a ping with TTL=1 (406),
+            or it is not sharing enough (407).
+
+    5xx     The servent noticed an error, but it is an "internal" one.
+            It can be an I/O error or other bad error (500), a protocol
+            desynchronization (501), the send queue became full (502).
+
+The format of the String is the following (<cr> refers to "\r" and <lf>
+to "\n"):
+
+    Error message, as descriptive as possible
+
+or optionally, something more qualified, with HTTP-like headers giving
+out more information:
+
+    Error message, as descriptive as possible<cr><lf>
+    Server: some server/version<cr><lf>
+    X-Gnutella-XXX: some specific gnutella header<cr><lf>
+        for instance telling the host about alternate<cr><lf>
+        nodes it could connect to<cr><lf>
+    <cr><lf>
+
+The presence of a <cr><lf> at the end of message indicates that HTTP-like
+headers are present.  The absence of any <cr><lf> indicates that the
+short error message form was used.
+
+Unless circumstances making that impossible (urgent disconnection due
+to a memory fault), the HTTP-like headers version should be used, with
+at least a Server: header, allowing better tracing and debugging.
+
+
+3. Sending a Bye (0x02) Packet
+
+Servents should send a Bye packet to a node as the last thing on the
+network, and then close the connection.  TCP/IP will make its best to
+relay the final data to the other end, even though the local connection
+appears closed.  The data may not be able to make it though, but at
+least the servent tried.
+
+A Bye packet must be sent with TTL=1 (to avoid accidental propagation by
+an unaware servent), and hop=0 (of course!).
+
+[Note on 15/03/2002: see Appendix 2 and Appendix 3 for slight amendments]
+
+
+4. Reception of a Bye (0x02) Packet
+
+A Bye packet should have hop=0, TTL=1 upon reception, or it should be
+immediately discarded as being incorrect.
+
+Upon reading a a Bye packet, a node should immediately close the
+connection and stop processing of any other received packet from that
+connection that was still pending processing.
+
+A Bye packet should not be sent back on the connection before closing,
+since the remote party already initiated the farewell.
+
+
+5. Write Errors
+
+When a servent is unable to write to an another node (TCP/IP reports the
+connection was closed, or the send buffer is full because the node does
+not read quickly enough), it should perform additional checking:
+
+* If the connection is reported closed, the servent should begin reading
+  from the connection, as TCP/IP buffers the pending input and will
+  deliver all the bytes sent by the remote party before closing and
+  received by the local host.  The servent should skip all the packets
+  and look for a Bye (0x02) packet.  If it finds it, it should display/log
+  the error.  Otherwise, it will report a disconnection as usual.
+
+* If the sending buffer is full, the servent should remove all pending
+  messages, leaving only the only message that could possibly be
+  partially sent, and which needs to be flush in whole to avoid
+  protocol desynchronization.  Then, it should enqueue a Bye packet,
+  with error code 502, and attempt the delivery of that information for
+  some reasonable time.  In any case, no further data should be enqueued
+  for this node.  The servent still needs to read the incoming data to
+  avoid filling of its own transmit queue at the other end, but discard
+  all read data immediately.  This includes any partially received packet
+  that we got before discovery of the "send queue full" condition.
+
+
+6. Examples
+
+Here are examples of Bye packet payloads.  I am showing the error code
+in ASCII, but keep in mind it is encoded in the leading two bytes of
+the payload, and should not be repeated in ASCII in the message String.
+This is simply done here for reading convenience.
+
+    200 Shutting Down<cr><lf>
+    Server: my server/version<cr><lf>
+    <cr><lf>
+
+    502 Send Queue Full (40960 bytes)<cr><lf>
+    Server: my server/version<cr><lf>
+    <cr><lf>
+
+    401 Too Many Duplicates (Got 12 packets, 1.4% of your traffic)<cr><lf>
+    Server: my server/version<cr><lf>
+    <cr><lf>
+
+
+7. Conclusion
+
+Because the Bye (0x02) packet is the last one sent, it is fully compatible
+with the 0.4 protocol.  Servents could begin sending it this very minute,
+nothing would break in the Gnutella Network.
+
+Due to this very desirable property, it is hoped that the Bye (0x02)
+packet will be retrofitted into the protocol document for version 0.4.
+
+Finally, due to its simple format and its nice social nature, it is
+expected to be widespread quite quickly.  Expect to get more informative
+disconnection messages anytime soon.
+
+--RAM, 11/09/2001
+
+
+A. Appendix 1: Handshaking Headers
+       
+This proposal was initially made for the 0.4 protocol, but with 0.6 comes
+the ability for servents to exchange about supported features.
+
+There is no real need to declare any support for the Bye packet, since by
+construction this packet will be the last one in the stream.  However, doing
+so provides implicit information to the remote node:
+
+    If a servent declaring support for the Bye packet does not send one 
+    before the connection is broken, one can be fairly certain that the
+    connection was closed unexpectedly (e.g. the process was killed).
+       
+This specification of the Bye packet therefore requires servents to emit
+the following header during handshaking:
+
+    Bye-Packet: 0.1
+ 
+This advertising for Bye also allows possible extension of those
+specifications.  Further versions will be backward compatible, so the
+lowest version number should be retained when negotiating.  Even if the
+remote end advertises version 0.2, emitting support indication for 0.1 will
+force the peer to limit itself to the 0.1 specifications.
+
+--RAM, 04/02/2002
+
+
+B. Appendix 2: A Step Towards Controlled TIME_WAIT Penalty
+
+Although not originally designed for that purpose, the combination of 0.6
+handshaking and BYE gives the ability to avoid getting the TIME_WAIT state
+on a socket, for the party initiating the BYE.
+
+The TIME_WAIT problem stems from the TCP/IP state machine, whereby the side
+initiating the connection close (i.e. sending the first FIN) will end-up in
+a TIME_WAIT state where it will stay for twice the Maximum Segment Life,
+which is typically 2 minutes.  That means 4 minutes before the TCP/IP Transfer
+Control Block can be reclaimed, since TCP keeps it around to be able to send
+back an RST (reset) condition for any packet reaching the port.  After the
+4 minutes delay, TCP can rest assurred that the whole connection is cleared,
+and can therefore release the TCB, making the port available again.
+
+Look at:
+
+    http://www-old.ics.uci.edu/pub/ietf/http/draft-ietf-http-connection-00.txt
+
+for more detailed explainations.
+
+Since the amount of kernel memory and the amount of ports are both limited
+quantities, it can be important to not get too many TIME_WAIT.  The important
+thing to note is that it is the side initiating the close that will get the
+TIME_WAIT penalty.
+
+How is this related to BYE?  Simple:
+
+* A servent supporting BYE will have to close() the connection when receiving
+  the BYE packet.
+* Because of Bye-Packet advertising in the handshake, we know whether a servent
+  support BYE.
+
+Therefore, the following (optional) modification of the original specifications
+is added:
+
+* In section 3., after sending the BYE packet, a servent not willing to pay the
+  TIME_WAIT penalty can defer the close() operation for "some time".  This time
+  can be estimated to twice the typical round-trip for an "alive PING" message
+  (i.e. a PING with TTL=1, hops=0).  When "some time" has elapsed, a close()
+  is forced nonetheless to free the resources.
+
+Naturally, this deferring of close() only makes sense if the remote node gave
+explicit indication for BYE support in its handshaking.  A servent handshaking
+at 0.4 cannot advertise BYE support conveniently, but can nonetheless support
+BYE.  Therefore, although it makes sense to send a BYE to a 0.4 servent, for
+its original tracing purposes, it is almost a wasted bet to defer the close().
+
+The idea is that section 4. will be strictly followed: upon reception of BYE,
+the servent MUST close() the connection.  The receiving servent MUST NOT play
+tricks and try to avoid closing the connection itself to not pay the TIME_WAIT
+penalty, and that is irrespective of whether it initiated the connection or not
+to the remote node that is now sending the BYE packet.
+
+
+C. Appendix 3: Increasing Chances of BYE Getting Delivered
+
+To prevent having the stack of the receiving BYE packet discard it because
+further data sent reached a closed socket and were therefore rejected with
+a RST, thereby causing the yet-unacknowledged BYE to be discarded, the side
+sending BYE should refrain from calling close(), but instead use
+shutdown(SHUT_WR) to close the writing side, yet keep the reading side
+opened.  This is sending a FIN anyway, so it will not prevent TIME_WAIT, only
+increase the chances that the remote end will get the BYE payload.  After
+proper timeout, the reading side will be closed.
+
+The purpose here is simply to increase the chances that the remote application
+will read the BYE and therefore handle its payload.  An application combining
+the use of shutdown(SHUT_WR) with the deferred shutdown() scheme of Appendix 2
+will truly maximize the chances for BYE to be properly delivered.  Only true
+network congestion could prevent delivery before timouts are triggered.
+
+--RAM, 15/03/2002
+

@@ -1,0 +1,246 @@
+
+-------------------------------------------------------------------------------
+                          gtk-gnutella shell interface
+-------------------------------------------------------------------------------
+Date: 2002-12-17
+Author: Richard Eckart
+$Id$
+
+
+Introduction
+------------
+
+  gtk-gnutella supports a so-called shell interface. This feature is available
+  locally and optionally remotely as well. At the moment, the shell has still
+  limited use but is nonetheless sufficient for special tasks and uses. It is
+  especially useful and important when using gtk-gnutella Topless.
+
+Connecting
+----------
+
+  gtk-gnutella has a simple built-in application which can be used to
+  access the shell over the local socket by invoking it as follows:
+
+  $ gtk-gnutella --shell
+
+  Note, the environment variable GTK_GNUTELLA_DIR is also respected in
+  this case.  You need write-permission to the local socket located in
+  "$GTK_GNUTELLA_DIR/ipc/socket". For security reasons, the "ipc" directory
+  and "socket" are created so that only the user running the gtk-gnutella
+  process can access them.
+
+  To connect to the remote shell simply telnet to the gnutella port on
+  your machine. Alternative applications are gnutls-cli (for a TLS encrypted
+  connection) and, for example, netcat. The latter is useful for automized
+  task using scripts because telnet cannot be used properly for such purposes.
+  
+  While it is possible to have multiple shells open at the same time, keep in
+  mind that this feature is not implemented as a multi-user system.
+
+
+Authentication
+----------------
+
+  The local shell does not require authentication because the local socket is
+  protected by the filesystem permissions. However, in order to request
+  access to the shell, the first sent line must be "HELO". Optional arguments
+  are ignored for now. This means, the local socket can also be used for
+  anything else supported over the ordinary listening TCP socket e.g.,
+  HTTP. When using "gtk-gnutella --shell" this "HELO" is sent automagically.
+
+  When using the remote shell, The first thing you need to do after the connect
+  is to authenticate. For that you need to supply the command:
+
+    HELO [credential]
+
+  The [credential] is stored in $GTK_GNUTELLA_DIR/auth_cookie. gtk-gnutella
+  creates this file at startup and stores a random base32 value in it.  The
+  file is readable only by the owner.
+
+  NOTE: The remote shell interface is deprecated and will be removed in
+  the future in its current form because the authentication is unacceptably
+  insecure. Therefore, it is completely disabled at compile-time by
+  default.
+
+
+Commands
+--------
+
+  After the authentication, you can enter commands. All commands are
+  case-insensitive but their arguments might be case-sensitive.
+  You can use double-quotes in commands to create arguments that contain
+  spaces. Within those quotes the "\" (backslash) is used to escape chars
+  ('\x' -> 'x', '\"' -> '"').  This is useful if you need to have
+  double-quotes in a quoted argument.
+
+  The commands that are currently working are:
+   
+  - help 
+    Shows available commands.
+
+  - intr
+    Toggle interactive mode.
+    Interactive mode is automatically turned on when run from a terminal.
+
+  - quit
+    Close the shell connection.
+
+  - search add <query>
+    Creates a new search for <query>. The query string is interpreted the
+    same way as in the GUI. This means you can also initiate browse host
+    requests and even magnets are handled, so even downloads can be started
+    this way.
+
+    NOTE: This command does not yet for gtk-gnutella Topless because large
+    parts of the code responsible for handling searches and search results
+    are implemented in the GUI.
+
+  - log cwd
+    Shows the current working directory, which is were relative logfiles
+    are kept.
+
+  - log rename out|err <path>
+    Renames current "out" or "err" logfile as <path> and reopens the previous
+    logfile.  This can be used to safely "rotate" logfiles.
+
+  - log reopen [out|err|all]
+    Reopens specified logfile, or all of them.  If the names have not been
+    changed with "log set" first, this has no visible effect.
+
+  - log set out|err <path>
+    Sets a new name for log files.  Only the name is changed, and the
+    logfile needs to be re-opened to have output redirected to that file.
+    Absolute or relative paths can be given.  Use "log cwd" to know the
+    current working directory.
+
+  - log status [out|err|all]
+    Display a small status showing the status of each file, its operating
+    flags (managed or (U)nmanaged, (D)isabled or (E)nabled, pending a (R)eopen
+    or already (O)pened), the time since the file was last opened, its
+    current size and the path name ("-" if un-managed yet).
+    By default, supply status for all logfiles, unless one is named explicitly.
+
+  - node add <ip> [port]
+    Try to connect to given <ip>. [port] is optional. If no [port] is given
+    the default gnutella port 6346 is used.
+
+  - node drop <ip> [port]
+    Disconnect the node with the given <ip> and port. [port] is optional. If
+    no [port] is given, all nodes with the given <ip> are disconnected.
+
+  - print <property>
+    Print the current value of a property.  Refer to gnet_props.ag and 
+    gui_props.ag to find names, descriptions, and possible values of 
+    properties.  Current values are stored in ~/.gtk-gnutella/config_gnet 
+    and ~/.gtk-gnutella/config_gui so you could also look there for hints.
+
+  - set <property> <value>
+    Set the value of <property> to <value>.
+    Boolean values are false|FALSE|0 for false and true|TRUE|!0 for true.
+    Multichoice properties must be set with their integer values, e.g. 
+    to set configured_peermode, you should know that 0 is for leaf, 
+    1 for legacy, 2 for ultrapeer, and 3 for auto.  
+
+  - whatis <property>
+    Print information about the property.  This is the same information 
+    found in the tooltip in the gui.
+
+  - shutdown
+    Initiates a shutdown of gtk-gnutella.
+
+  - nodes
+    Displays a list of all currently connected Gnutella peers.
+
+  - horizon [all]
+    Shows the current horizon information as evaluated by the HSEP
+    extension. An optional argument "all" shows the horizon for all
+    connected peers supporting HSEP. Otherwise only the cumulative
+    horizon stats are displayed.
+
+  - rescan
+    Rescans all shared directories and updates the list of shared
+    files. This is useful when you removed or added files to the
+    shared directories.
+
+  - status
+    Shows a short overview of the current node status.
+
+  - offline
+    Disconnects from Gnutella but keep uploads and downloads running.
+
+  - online
+    Connects to Gnutella.
+
+  - props [<regex>]
+    Lists the names of all core properties. An optional regex pattern can
+    be used to show only certain properties.
+
+  - downloads
+    Lists all current registered downloads by file in human-readable form.
+
+  - download add <magnet>|<HTTP URL>
+    Initiates a download. The command accepts magnet links ("magnet:?") and
+    HTTP URLs ("http://").
+
+  - download list
+    Lists all download IDs, one per line. These IDs are to be used with
+    following commands. These IDs are stable between sessions.
+
+  - download abort ID
+    Aborts the download with the given download ID. Whether the file is
+    removed depends on the settings.
+
+  - download pause ID
+    Pauses the download with the given download ID.
+
+  - download resume ID
+    Resumes a paused download with the given download ID.
+
+  - download show ID [filename|size|downloaded|id|paused|sha1|tth]
+    Displays the requested attributes one per line in the same order as
+    requested prefixed with the attribute name followed by '=' for the
+    given download ID. Attributes can be requested multiple times,
+    seperated by whitespace.
+    
+  - download rename ID filename
+    Renames the target file for a download with the given download ID.
+
+  - stats
+    Print statistics (general counters) in a parseable way for other programs
+    to peruse.  For instance:
+
+        echo stats | gtk-gnutella --shell | grep switching
+
+    would print:
+
+        attempted_resource_switching 7
+        successful_resource_switching 7
+        queued_after_switching 0
+
+    These strings are never translated: consider them as variable names.
+
+Notes:
+------
+
+  The property "remote_shell_timeout" controls after how many seconds a
+  idle shell session is terminated. The default is 60 seconds. You can
+  disable this timeout by setting the property to zero.
+
+  The property "session_id" is useful for front-ends or scripts to check
+  whether gtk-gnutella has been restarted between accesses of the shell
+  interface. This ID refers to the server session, not the shell session.
+
+
+Caveats:
+--------
+
+  Some output might be translated but in general the shell interface is
+  meant to be English-only. There might be character set problems because
+  the gtk-gnutella process might be using a different locale than the
+  shell connecting to it. Therefore, it's highly recommended, that the
+  gtk-gnutella process is started using UTF-8 as locale encoding or ASCII
+  if UTF-8 support is not available or desired.
+
+  The output format is meant to be NNTP-like so that it is easy to parse
+  by scripts - but this is not the case yet for all commands.
+

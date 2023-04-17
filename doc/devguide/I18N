@@ -1,0 +1,287 @@
+SHORT GUIDE ABOUT TRANSLATING MESSAGES
+$Id$
+
+0. LICENSE AND AUTHORS
+======================
+
+This document is provided under the Creative Commons Public License
+2.5 (http://creativecommons.org/licenses/by/2.5/). It is based on
+the contributions by the following authors:
+
+Christian Biere (cbiere at users.sourceforge.net)
+Thomas Schuerger (trancetip at users.sourceforge.net)
+Murphy (eqom14 at users.sourceforge.net)
+Daichi Kawahata (daichik at users.sourceforge.net)
+
+
+1. INTRO
+========
+
+This is a short summary of the gettext documentation. See the
+APPENDIX if this information isn't sufficient for you.
+
+
+2. Get the editor
+=================
+
+You can use a text editor Emacs with `po-mode', Vim with ftplugin
+`po.vim' or a graphical PO file editor like `poEdit
+(requires wxWidgets)', `gtranslator (requires GNOME)', `KBabel (requires
+KDE)', these editor have special features for editing PO file. You can
+use normal editor like Vi of course, but it's highly recommended using
+one of those editors.
+
+Here's the links:
+
+    o Emacs PO mode - Major mode for GNU gettext PO files.
+      http://www.gnu.org/software/gettext/manual/html_node/gettext_10.html
+
+    o Vim po.vim - A ftplugin for easier editing of GNU gettext PO files.
+      http://vim.sourceforge.net/scripts/script.php?script_id=695
+
+    o poEdit - A cross-platform gettext catalogs editor.
+      http://www.poedit.org/
+
+    o gtranslator - The GNOME 2.x translation making program.
+      http://gtranslator.sourceforge.net/
+
+    o KBabel - An advanced and easy to use PO-file editor.
+      http://i18n.kde.org/tools/kbabel/
+
+If you are going to keep contributing your translation work, you might
+want to be familiar with one of those above.
+
+
+3. Extract the translatable strings from the source files:
+==========================================================
+
+Update your source files to the latest version from CVS.
+
+Then extract the strings:
+
+    $ cd po
+    $ make update-po
+    $ cp gtk-gnutella.pot messages.po
+
+If you look at the source files, you'll find many strings which are not marked
+as translatable. The reason for this is that these strings are only used
+internally or they are only interesting for developers i.e., for debugging.
+
+
+4. Prepare the PO file:
+=======================
+
+Use your favorite editor and edit the first lines of
+``messages.po'' to match these:
+
+    "Project-Id-Version: gtk-gnutella VERSION\n"
+    "POT-Creation-Date: 2003-04-15 23:20+0200\n"
+    "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+    "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+    "Language-Team: LANGUAGE <LL@li.org>\n"
+    "MIME-Version: 1.0\n"
+    "Content-Type: text/plain; charset=UTF-8\n"
+    "Content-Transfer-Encoding: 8bit\n"
+
+Replace VERSION, YEAR, MO etc. with reasonable values. It's important
+that you use ``charset=UTF-8'' as above. If your editor doesn't
+support UTF-8 don't mind, you can convert that later.
+
+
+5. Translate the messages:
+==========================
+
+You can use a text editor or a graphical PO file editor like "poEdit" for
+editing the translations (includes UTF-8 support), see
+http://poedit.sourceforge.net.
+
+In the PO file you'll find something like this:
+
+    #: main.c:42
+    msgid "Hello world"
+    msgstr ""
+
+If you want to translate to German, you would change the 3rd line
+to the following:
+
+    msgstr "Hallo Welt"
+
+Don't touch the string behind ``msgid''! If you find typos or
+the like, this string must be corrected in the source file.
+If you see a string with a ``%'' in it, then leave the part with
+``%'' as-is and don't change the order of these ``words''.
+Also keep the character after an backslash ``\'' as-is.
+For example:
+
+    msgid "%-8s are %d time faster than %s.\n"
+    msgstr "%-8s sind %d mal schneller als %s.\n"
+
+See man printf(3) for details about the syntax, if you have
+problems with it.
+
+You don't have to translate every message. If you cannot or don't
+want to translate a message just leave ``msgstr ""'' as-is. Don't
+copy the string of msgid!
+
+There are sometimes strings that are not meant to be translated
+(e.g., "window14" or the like) but appear in the PO file nonetheless.
+This is caused by glade which tags all strings translatable. Also
+as a rule of thumb, strings that contain multiple underscores are
+usually used as internal place holders (e.g., "PROP_IP_CHANGED").
+
+However, some strings contain a single underscore (e.g., "_File"). In
+this case the underscore declares the following letter as accelerator
+key. In this example, the key combination <Alt>+F or sometimes
+<Control>+F would activate the GUI element associated with this string.
+You should use an appropriate character as accelerator in the translation
+as well, just prepend an underscore to selected character:
+
+    msgid "Save _File"
+    msgstr "Speichere _Datei"
+
+If you change the accelerator key, try to make sure that the chosen key
+doesn't clash with another one in the same scope. In rare cases, you might
+want to discard the underscore so that no accelerator will be available for
+the GUI element.
+
+If you don't want to change the accelerator key, but the letter doesn't
+appear in the translated string, you can append it embedded in parentheses:
+
+    msgid "_Copy File"
+    msgstr "Kopiere Datei (_C)"
+
+
+5.1 Translation Context:
+========================
+
+The GUI often uses single words or short word combinations. When
+used as a frame title a colon is appended the English to disambiguate
+its meaning. Another possibility to disambiguate especially short
+strings is using the character '|' as separator. If the English text
+contains this character, the part up to the '|' may contain a comment
+for translator and/or simply declare a namespace so that the word can
+be translated in a certain meaning even if the same word is used with
+different meanings in other places. For example:
+
+    msgid "Bitzi File Judgment|Complete"
+    msgstr "Komplett"
+
+In the translated string discard everything up to the first '|' and
+translate the rest only.
+
+If you want to see the strings translated every so often in gtk-gnutella
+when it is running, without having to install as root each time, do
+
+    $ ./build.sh --localedir="$HOME/gtkg/locale"
+    $ make install
+
+You can then set the environment variable NLSPATH to override the
+system default paths:
+
+    $ NLSPATH="$HOME/gtkg/locale" gtk-gnutella
+
+Note: Not all systems support the NLSPATH variable, some may use another
+one.
+
+
+6. Convert the output to UTF-8 (if it's not already UTF-8 encoded):
+===================================================================
+
+iconv -f CHARSET -t UTF-8 messages.po > utf8.po
+
+Replace CHARSET by the one you use e.g., if your from Western Europe
+it's probably ISO-8859-1. Otherwise see what echo $LC_CTYPE says,
+and strip the part up to the . (dot). For example:
+
+    $ echo $LC_CTYPE
+    ja_JP.eucJP
+    $ iconv -f eucJP -t UTF-8 messages.po > utf8.po
+
+If you use Vim you can also convert lines on the fly like this:
+
+    :,!iconv -f ISO-8859-1 -t UTF-8
+
+This usually works even if your terminal doesn't support UTF-8
+encoded character sets.
+
+7. Install the PO file:
+=======================
+
+First, verify that your PO file is correct:
+
+    $ msgfmt --check --strict utf8.po -o output.mo
+
+Second, check your PO file has any missing accelerator keys:
+
+    $ msgfmt --check-accelerators=_ utf8.po -o output.mo
+
+You should get no warnings but find a file ``output.mo'' which is
+binary version of the ``utf8.po'' which will be installed by the
+application during its installation.
+ 
+Copy utf8.po with the appropriate name into the po directory:
+
+The part before ``.po'' is simply the country code (ISO 3166). For
+example, if you are from the Netherlands:
+
+    $ cp utf8.po ../po/nl.po
+
+
+8. Stay tuned!
+==============
+
+The messages may be changed from release to release and with growing
+functionality there will be more messages that should be translated.
+Thus, translation isn't something static. Every few months there will
+be a few more sentences to be translated.
+
+To update the PO files to reflect any changes to translatable strings
+in the source files simply update your files from CVS and run
+
+    $ cd po
+    $ make update-po
+
+This will scan the source files for translatable strings, will (re-)build
+the file "gtk-gnutella.pot" and will use msgmerge to update the PO files
+from the POT file.
+
+After that you can check your language's PO file for missing/fuzzy
+translations and add/correct them with you favorite editor.
+
+When you're finished, you should run "make update-po" again. This will wrap
+your .po file's lines properly to have a maximum line width of 80 characters.
+
+
+9. Add localized keys to gtk-gnutella.desktop:
+==============================================
+
+The Name, GenericName, and Comment keys should be translated. The
+format is:
+
+Key[locale]=localestring
+
+For example:
+
+Name[nl]=gtk-gnutella
+
+Make sure the file stays UTF-8 encoded.
+
+
+10. APPENDIX
+============
+
+The complete GNU gettext manual:
+http://www.gnu.org/manual/gettext/index.html
+
+A good online English<->German dictionary:
+http://dict.leo.org/
+
+Standard country codes (ISO 3166):
+http://www.ics.uci.edu/pub/ietf/http/related/iso3166.txt
+
+Standard language codes (ISO 639):
+http://www.w3.org/WAI/ER/IG/ert/iso639.htm
+
+Freedesktop.org desktop entry spec:
+http://www.freedesktop.org/standards/desktop-entry-spec/
+

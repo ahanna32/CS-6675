@@ -1,0 +1,333 @@
+DEBUGGING GTK-GNUTELLA
+$Id$
+
+1. INTRO
+========
+
+This document gives some information on debugging gtk-gnutella and on
+finding potential bugs, focusing on the particulars of gtk-gnutella.
+
+
+
+2. Using GDB on GTKG
+====================
+
+Using GDB on GTKG works fine in general, but there is one thing to
+keep in mind. The SIGPIPE signal is used within GTKG to determine if a
+connection was lost, so gdb should be instructed not to stop on this
+signal.
+
+    (gdb) handle SIGPIPE nostop noprint
+
+
+
+3. A short primer on memory allocation in GTKG
+==============================================
+
+GTKG uses three different ways to allocate memory.
+
+malloc() is the most general way to allocate memory. It is actually used
+through the g_malloc() wrapper. That should be used in particular when you
+don't know or can't know the size of what is going to be freed, or to
+allocate long-lived memory that will stay around for the whole lifetime
+of the process.
+
+zalloc() is a zone allocator. This should only be used when you are
+planning to allocate and free many objects of the exact same size. 
+You need a dedicated zone to allocate and free from, which is created
+through zget().
+
+walloc() is a wrapper around zalloc(). It will call zalloc() on
+privately managed zones if the block is small, and use malloc()
+otherwise. To avoid memory fragmentation it is best to use walloc()
+whenever possible.  You have to keep track of the allocated size to
+be able to give it back to wfree().
+
+
+
+4. Using GTKG-specific memory allocation tracking
+=================================================
+
+GTKG comes with specific memory allocation tracking code which is not
+enabled by default. This code can be enabled by adding the right
+defines to CFLAGS. Make sure to do a 'make clean' after adding them so
+that all GTKG code is compiled with the same set of debugging
+instructions. Otherwise the debugging code will report weird results.
+
+The defines which can be used are:
+
+    TRACK_MALLOC
+        Track allocations made by malloc() and provide a report on
+        memory not freed at the end of program execution. Memory freed
+        twice is reported during program execution.
+
+    TRACK_ZALLOC
+        Track allocations made by zalloc() and provide a report on
+        memory not freed at the end of program execution. Memory freed
+        twice is reported during program execution.
+
+        * note that there is no TRACK_WALLOC because walloc() is a wrapper
+          around both malloc() and zalloc() so all memory allocation with
+          walloc() will be caught with TRACK_MALLOC and either
+          TRACK_ZALLOC or REMAP_ZALLOC.
+
+        Combining with MALLOC_FRAMES will also track and display the
+        allocation stack frame of all blocks which remain allocated at
+        shutdown time.
+
+    TRACK_ATOMS
+        Track the allocation of Atoms used in GTKG. Some values, such
+        as user agent strings, will be used multiple times in
+        GTKG. GTKG uses Atoms for such values so that the actual
+        string or value is only allocated once. Atoms with non-zero
+        life counts are reported at the end of program execution.
+
+	TRACK_VMM
+		Track the low-level allocation from vmm_alloc(), which need to
+		be paired with a matching vmm_free().  Any inconsistency in the
+		provided size or any duplicated freeing will be reported.
+		At the end of execution, leaked pages are reported.
+
+    ZONE_SAFE
+        This define allocates more memory when using zone allocations
+        so that the used status can be tracked and double free's can
+        be detected. 
+
+        ZONE_SAFE is automatically turned on when TRACK_ZALLOC is
+        used. When tracking some additional memory is used to track
+        the file and line information as well.
+
+    REMAP_ZALLOC
+        Cause both zalloc and walloc calls to actually use g_malloc. This
+        has the benefit that g_malloc memory allocation tracking can be
+        used for all memory allocations. This is useful if you want to
+        use something like dmalloc to do memory allocation
+        debugging. See http://dmalloc.com/ for more details.
+
+        It does make much sense to use REMAP_ZALLOC together with the
+        TRACK_* defines.
+
+    MALLOC_STATS
+        When supplied in addition to TRACK_MALLOC, and with REMAP_ZALLOC,
+        this keeps track of allocation statistics during the lifetime of
+        the program.
+
+        * note: When compiling with MALLOC_STATS, it's best to use REMAP_ZALLOC
+          as well since normally zalloc() has its own block tracking features
+          that will not be accounted for in the malloc stats.
+
+        Those statistics are dumped at the end of the program run, and also
+        when a SIGUSR1 signal is sent.  The SIGUSR2 signal resets the
+        incremental statistics after dumping them and can be used to look at
+        the memory usage variation between a SIGUSR2 and the next SIGUSR1
+        or SIGUSR2.
+
+        During the execution of the program, statistics are sorted on the
+        "incremental" counters whilst the final dump is sorted using the
+        global counters.
+
+    MALLOC_FRAMES
+        If you have a GNU C library with the backtrace() call, this will
+        keep track of the allocation stacks, free stacks and reallocation
+        stacks and will show the various paths leading to a given call.
+
+        At exit time, it will provide, for each leaked block, the stack trace
+        that led to the allocation of that block  The stack uses symbol
+        names if possible.  This is done by parsing the output of "nm -p",
+        so it may not work on all systems (tested only on Linux, but the
+        expected format is known to be compatible with that of HP-UX, at least).
+
+        MALLOC_FRAMES works best with MALLOC_STATS and REMAP_ZALLOC, but
+        it can be used in a standalone way as well, in which case it only
+        applies to zalloc() and walloc(), without any need for TRACK_ZALLOC
+        (however without TRACK_ZALLOC only stack frames will be displayed,
+        the exact allocation point will not be tracked).
+
+        To get allocation frames from malloc()-style allocations, TRACK_MALLOC
+        is also required.
+
+	MALLOC_TIME
+		Record allocation time / tracking time of all blocks.  This can be
+		used to determine whether a leak is really a true leak or whether
+		it is only due to improper cleanup (for recently-allocated blocks)
+		after a sudden exit request.
+
+Some options are also available by editing the src/lib/malloc.c top
+section, which define symbols that need only be visible within that file
+to be effective.
+
+All such symbols are protected thusly:
+
+#if 0
+#define MALLOC_SAFE
+#endif
+
+All you need to do is change the "#if 0" into "#if 1".  If you are a developer,
+be careful to never submit a version of src/lib/malloc.c with any of these
+conditional symbols turned on (i.e. the submitted version should contain
+only "#if 0" protections).
+
+The various symbols are:
+
+    MALLOC_VTABLE
+        When TRACK_MALLOC is not defined, it is important to define this so
+        that glib's and GTK's malloc() calls are redirected to the real_malloc()
+        routine, so that we have a chance to implement the various options
+        that can be defined in src/lib/malloc.c.
+
+		This setting is also required (and is forcefully enabled) when
+		MALLOC_SAFE options are used.
+
+    MALLOC_SAFE
+        When turned on, this adds a 4-byte trailer with a magic number, to
+        detect buffer overruns at realloc() and free() time.  One can also
+        add a fixed-length additional trailer (length is controlled by the
+        MALLOC_TRAILER_LEN symbol) to increase the protection / detection range.
+
+        Say -DMALLOC_TRAILER_LEN=32 on the compile line to get an additional
+        32-byte trailer that will be checked for overrun.
+
+        This is aimed at detecting buffer overruns, not as a way to permanently
+        tolerate them with some protection.  First, it costs additional memory,
+        and second, buffer overruns are bugs!
+
+	MALLOC_SAFE_HEAD
+		Adds additional header magic at the start of each block to help
+		spot off-by-one corruptions from other blocks which may not have
+		a trailer or are allocated through system's malloc() and thus do not
+		benefit from possible MALLOC_SAFE trailer checks.
+
+		Currently (2010-10-21) requires MALLOC_SAFE as well to compile cleanly.
+
+    MALLOC_FREE_ERASE
+        This erases the content of allocated blocks at free time, filling with
+        a marker which should also invalidate all pointers in the block: any
+        accidental de-reference should cause a segmentation fault or a bus
+        error.  The aim is to catch invalid access to freed memory.
+
+    MALLOC_DUP_FREE
+        Detects duplicate free() calls by marking the first integer of each
+        free block with a magic number that cannot be a valid pointer.
+        When the block is allocated again, the mark is removed (zero-ed).
+
+    MALLOC_PERIODIC
+        Turns on periodic scanning of all the allocated blocks to check
+        for memory corruption (corrupted markers at the end of blocks added
+        by MALLOC_SAFE).
+
+	MALLOC_LEAK_ALL
+		If enabled, report leaks for all the blocks allocated by glib/GTK
+		and intercepted trough the use of MALLOC_VTABLE which were not freed
+		at exit time.
+
+
+4. Other debugging options
+==========================
+
+The following CPP symbols govern assertions that are not enabled by default.
+
+	MQ_DEBUG
+		If enabled, activates all mq_check() calls, which ensure that the
+		message queue entries are sanely allocated.
+		This option was on by default during the whole 0.96.x series and
+		is being turned off for 0.97.
+
+	INPUTEVT_SAFETY_ASSERT
+		If enabled, adds costly assertions (using system calls) to make
+		sure file descriptors are opened, or of a particular type (e.g.
+		sockets).
+		This option was on by default during the 0.96.9 release,
+		especially meant to check the Windows port.  It is being turned off
+		for 0.97.
+
+	ZALLOC_SAFETY_ASSERT
+		If enabled, adds more costly assertions to make sure we are not
+		corrupting zones by releasing objects to the wrong zones.  Contrary
+		to ZONE_SAFE, this does not add any overhead to each allocated
+		object and therefore it does not change the allocation patterns
+		or the size of the objects requested.
+
+
+5. Automatic crash dump collection
+==================================
+
+Gtk-gnutella usually sets the ~/.gtk-gnutella/crashes directory as the
+recipient for crash dumps.
+
+A crash file is automatically generated when one of the --exec-on-crash
+and --gdb-on-crash options is set, or when gtk-gnutella determines that
+there are no core dumps possible and therefore needs to save some information
+about the crash condition before the process disappears (i.e. it behaves as
+if --gdb-on-crsh had been set).
+
+The crash file will be named like this:
+
+    gtk-gnutella-r18523-crash.19394.log
+                 ^            ^
+                 |            PID of the process that crashed
+                 SVN revision number 
+
+The file contains an RFC822-style header giving information about the crash,
+followed by the output of gdb's "bt" and "bt full" commands ran on the
+crashing process.  The stack will only be useful when the executable was
+not stripped of debugging symbols.
+
+To launch "gdb", gtk-gnutella relies on the default PATH in the shell
+to locate the debugger.
+
+With the --exec-on-crash option, one can specify the path to a program that
+will be called instead of gdb.  In that case, the content of the crash file
+will depend on the exact program logic.
+
+The program must expect the following arguments:
+
+    argv[1] = argv0;        /* Original command launched */
+    argv[2] = pid_str;      /* PID of the crashing process */
+
+The program also receives in the Crashfile environment variable the full path
+of the crash log file that is being generated.
+
+For instance, assume you have created an executable file called "gdb-wrapper"
+with the following content:
+
+------------------------------------------------------------------------
+#!/bin/sh
+
+executable="$1"
+pid="$2"
+
+LC_ALL=C    # gdb is localized and the egrep rules wouldn't match
+export LC_ALL
+unset LANG
+
+(
+    echo 'bt'
+    echo 'bt full'
+    echo 'quit'
+    while echo | cat 2>/dev/null # gdb does not handle stdin properly
+    do sleep 1
+    done
+) | gdb -q -n -se "$executable" -p "$pid" \
+  | egrep -v -e ^Reading -e ^Loaded -e ^done -e ^Using -e ^\\[
+
+# Send the content of the crash logfile to someone@example.com
+(
+    cat - "$Crashfile" <<'EOM'
+From: gtkg
+To: someone@example.com
+Subject: GTKG crash
+
+EOM
+) | /usr/sbin/sendmail -t
+exit
+------------------------------------------------------------------------
+
+That will run gdb, filtering out most of the noise it emits and will then
+e-mail the generated crash log to "someone@example.com", informing that
+the program crashed and why.
+
+Simply run gtk-gnutella with the following arguments:
+
+    gtk-gnutella --exec-on-crash ~/bin/gdb-wrapper \
+        --log-stderr ~/logs/gtkg.log
+
