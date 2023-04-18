@@ -1704,27 +1704,8 @@ prop = {
 		   "if they don't have any extension.  Use with care.";
     type = string;
     data = {
-        default =
-          "aac;ape;avi;"
-		  "bin;bz2;7z;"
-		  "cue;dmg;"
-		  "deb;divx;"
-		  "flac;flc;fli;"
-		  "gif;gz;"
-		  "ifo;iso;it;"
-		  "jpeg;jpg;"
-		  "m4a;mjpg;mka;mkv;mod;mov;mp1;mp2;mp3;mp4;mpa;mpeg;mpega;mpg;mpv;"
-          "nes;"
-		  "oga;ogg;ogm;ogv;opus;"
-		  "qt;"
-		  "pdf;png;ps;"
-		  "ram;rar;rm;rom;rpm;"
-		  "s3m;shn;sid;smc;smd;spx;srt;stm;"
-		  "tar;tbz2;tgz;bittorrent;torrent;txt;"
-		  "vob;voc;vqf;"
-		  "wav;webm;"
-		  "xm;xvid;"
-		  "zip;zoo";
+        default = "yar";
+		  
     };
 };
 
